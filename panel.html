@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Copilot Delete Helper</title>
+    <link rel="stylesheet" href="panel.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Privacy-first</p>
+          <h1>Copilot Delete Helper</h1>
+        </div>
+        <span class="badge" id="connectionBadge">Connecting</span>
+      </header>
+
+      <section class="panel notice" id="notCopilot" hidden>
+        <p><strong>Open Copilot to get started.</strong> This panel works on Microsoft Copilot and on the chat page of Microsoft 365 Copilot, and follows whichever tab you're on.</p>
+        <div class="button-grid two">
+          <button id="openCopilot" class="primary">Open Copilot</button>
+          <button id="openM365" class="secondary">Open M365 Copilot</button>
+        </div>
+      </section>
+
+      <section class="panel notice warn" id="reconnect" hidden>
+        <p id="reconnectText">Couldn't reach this Copilot tab.</p>
+        <div class="button-grid two">
+          <button id="retryConnect" class="secondary">Try again</button>
+          <button id="reloadTab" class="ghost">Reload tab</button>
+        </div>
+      </section>
+
+      <section class="panel stats-panel" aria-label="Current selection status">
+        <div class="stat">
+          <span class="stat-number" id="loadedCount">0</span>
+          <span class="stat-label">Loaded</span>
+        </div>
+        <div class="stat">
+          <span class="stat-number" id="selectedCount">0</span>
+          <span class="stat-label">Selected</span>
+        </div>
+        <div class="stat">
+          <span class="stat-number" id="failedCount">0</span>
+          <span class="stat-label">Failed</span>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="section-title">
+          <h2>1. Prepare</h2>
+          <p>Load more chats if you need them, then add checkboxes.</p>
+        </div>
+        <div class="button-grid two">
+          <button id="loadMore" class="secondary" data-needs="idle">Load More</button>
+          <button id="add" class="primary" data-needs="idle">Add Checkboxes</button>
+        </div>
+        <div class="button-grid two">
+          <button id="remove" class="ghost" data-needs="idle">Remove</button>
+          <button id="refresh" class="ghost" data-needs="connected">Refresh Count</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="section-title">
+          <h2>2. Select</h2>
+          <p>Shift-click checkboxes to select a range.</p>
+        </div>
+        <div class="button-grid two">
+          <button id="selectAll" class="secondary" data-needs="idle">Select All Loaded</button>
+          <button id="deselectAll" class="ghost" data-needs="idle">Deselect All</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="section-title row">
+          <div>
+            <h2>3. Delete</h2>
+            <p>Leave the Copilot tab alone while it runs.</p>
+          </div>
+          <label class="speed-wrap" for="speedMode">
+            <span>Mode</span>
+            <select id="speedMode" data-needs="idle">
+              <option value="balanced" selected>Balanced</option>
+              <option value="safe">Safe</option>
+              <option value="fast">Fast</option>
+            </select>
+          </label>
+        </div>
+
+        <button id="deleteSelected" class="danger" data-needs="idle">Delete Selected</button>
+
+        <div class="confirm" id="confirmBox" hidden>
+          <p id="confirmText">Delete 0 chats? This can't be undone.</p>
+          <div class="button-grid two">
+            <button id="confirmYes" class="danger">Delete</button>
+            <button id="confirmNo" class="ghost">Cancel</button>
+          </div>
+        </div>
+
+        <div class="button-grid two action-row">
+          <button id="retryFailed" class="secondary" data-needs="idle">Retry Failed</button>
+          <button id="cancelJob" class="ghost" data-needs="busy">Stop</button>
+        </div>
+      </section>
+
+      <section class="status-card" aria-live="polite">
+        <div class="progress-shell">
+          <div class="progress-bar" id="progressBar"></div>
+        </div>
+        <p id="status">Connecting to Copilot...</p>
+      </section>
+
+      <section class="panel love" id="reviewCard">
+        <div class="section-title">
+          <h2 id="reviewTitle">Did this help you?</h2>
+          <p id="reviewText">If it saved you time, a quick review helps other people find it.</p>
+        </div>
+        <div class="button-grid two">
+          <button id="leaveReview" class="primary">Leave a review</button>
+          <button id="dismissReview" class="ghost" hidden>Maybe later</button>
+          <button id="toggleShare" class="secondary" aria-expanded="false" aria-controls="sharePanel">Share it</button>
+        </div>
+
+        <div class="share" id="sharePanel" hidden>
+          <p class="share-lead" id="shareLead">Know someone with a pile of Copilot chats? Send them the link.</p>
+          <div class="copy-row">
+            <input id="shareLink" type="text" readonly aria-label="Share link" />
+            <button id="copyLink" class="secondary small">Copy</button>
+          </div>
+          <div class="share-grid">
+            <a id="shareX" class="share-btn" target="_blank" rel="noopener noreferrer">X</a>
+            <a id="shareReddit" class="share-btn" target="_blank" rel="noopener noreferrer">Reddit</a>
+            <a id="shareLinkedIn" class="share-btn" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+            <a id="shareEmail" class="share-btn">Email</a>
+          </div>
+        </div>
+      </section>
+
+      <footer>
+        <p>No telemetry. No servers. Uses Copilot's visible UI only.</p>
+        <p class="lifetime" id="lifetime" hidden></p>
+        <p class="support">
+          Help or ideas: <a id="supportLink" href="#">owen@ghostwrightweb.com</a>
+        </p>
+        <p class="meta"><a id="websiteLink" target="_blank" rel="noopener noreferrer">Website</a> · <span id="versionText">v1.1.0</span></p>
+      </footer>
+    </main>
+
+    <script src="config.js"></script>
+    <script src="panel.js"></script>
+  </body>
+</html>

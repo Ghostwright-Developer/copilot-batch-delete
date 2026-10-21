@@ -1,0 +1,65 @@
+{
+  "manifest_version": 3,
+  "name": "Copilot Chat Batch Delete Helper",
+  "version": "1.1.0",
+  "description": "Privacy-first batch cleanup for Microsoft Copilot chats using Copilot's own visible delete UI.",
+  "homepage_url": "https://copilot.ghostwrightweb.com",
+  "minimum_chrome_version": "116",
+  "permissions": [
+    "scripting",
+    "sidePanel",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://copilot.microsoft.com/*",
+    "https://copilot.com/*",
+    "https://www.copilot.com/*",
+    "https://copilot.cloud.microsoft/*",
+    "https://m365.cloud.microsoft/chat*",
+    "https://microsoft365.com/chat*",
+    "https://www.microsoft365.com/chat*",
+    "https://www.office.com/chat*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Open Copilot Delete Helper",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "side_panel": {
+    "default_path": "panel.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://copilot.microsoft.com/*",
+        "https://copilot.com/*",
+        "https://www.copilot.com/*",
+        "https://copilot.cloud.microsoft/*",
+        "https://m365.cloud.microsoft/chat*",
+        "https://microsoft365.com/chat*",
+        "https://www.microsoft365.com/chat*",
+        "https://www.office.com/chat*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "css": [
+        "styles.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
