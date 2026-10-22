@@ -158,6 +158,14 @@
         if (looksLikeChat(el)) found.add(el);
       });
     }
+    // Microsoft 365 Copilot: each chat is a link to /chat/conversation/<id> inside a row that also
+    // holds the hover "..." button. Use that row so the menu button is inside what we hover.
+    document.querySelectorAll('a[href*="/chat/conversation/"]').forEach((link) => {
+      if (isOurs(link) || !isVisible(link)) return;
+      const row = link.parentElement && link.parentElement !== document.body && link.parentElement.querySelectorAll('a[href]').length === 1
+        ? link.parentElement : link;
+      if (row.getBoundingClientRect().height >= 18) found.add(row);
+    });
     // Keep the outermost match when one chat row contains another match.
     const list = [...found].filter((el) => ![...found].some((other) => other !== el && other.contains(el)));
     return list.sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top);
@@ -370,7 +378,8 @@
 
     if (state.failedKeys.has(chatKey(chat))) chat.classList.add(FAILED_CLASS);
 
-    const insertionTarget = chat.firstElementChild || chat;
+    const first = chat.firstElementChild;
+    const insertionTarget = !first || first.matches("a[href]") ? chat : first;
     insertionTarget.prepend(box);
     return true;
   }
@@ -517,7 +526,13 @@
       })
       .sort((a, b) => Math.abs(elementCenter(a).y - chatCenter.y) - Math.abs(elementCenter(b).y - chatCenter.y));
 
-    return candidates[0] || null;
+    if (candidates[0]) return candidates[0];
+
+    // Last resort: any visible button that lives inside the row itself (the hover "..." button).
+    const own = [...chat.querySelectorAll("button, [role='button']")]
+      .filter(isVisible)
+      .filter((btn) => !isOurs(btn) && !btn.classList.contains(CHECKBOX_CLASS));
+    return own[own.length - 1] || null;
   }
 
   function getOpenMenuRoot() {
