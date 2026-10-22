@@ -68,7 +68,7 @@
     cancelRequested: false,
     boxesOn: false,
     lastBox: null,
-    failedKeys: new Set(),
+    failedKeys: new Map(), // chat key -> how many chats with that title failed
     lastJob: { total: 0, deleted: 0, failed: 0, skipped: 0, current: 0, finished: false },
     review: { url: "", minDeleted: 5, show: false }
   };
@@ -160,12 +160,18 @@
     }
     // Microsoft 365 Copilot: each chat is a link to /chat/conversation/<id> inside a row that also
     // holds the hover "..." button. Use that row so the menu button is inside what we hover.
+    // When these links exist they ARE the chat list, so ignore the looser matches above (they
+    // would also pick up the suggestion chips in the middle of the page).
+    const linkRows = new Set();
     document.querySelectorAll('a[href*="/chat/conversation/"]').forEach((link) => {
       if (isOurs(link) || !isVisible(link)) return;
       const row = link.parentElement && link.parentElement !== document.body && link.parentElement.querySelectorAll('a[href]').length === 1
         ? link.parentElement : link;
-      if (row.getBoundingClientRect().height >= 18) found.add(row);
+      if (row.getBoundingClientRect().height >= 18) linkRows.add(row);
     });
+    if (linkRows.size) {
+      return [...linkRows].sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top);
+    }
     // Keep the outermost match when one chat row contains another match.
     const list = [...found].filter((el) => ![...found].some((other) => other !== el && other.contains(el)));
     return list.sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top);
@@ -288,7 +294,9 @@
   // Stats and live updates to the side panel
   // ---------------------------------------------------------------------------
   function getFailedCount() {
-    return state.failedKeys.size;
+    let n = 0;
+    state.failedKeys.forEach((count) => { n += count; });
+    return n;
   }
 
   function getStats(extra = {}) {
@@ -592,8 +600,9 @@
   }
 
   // Deletes one chat and only reports success once the chat is gone from the list.
-  async function deleteOne(key, speed) {
-    const row = findRowByKey(key);
+  async function deleteOne(key, speed, el) {
+    // Use the very row that was ticked. Chats can share a title, so the key alone is not enough.
+    const row = (el && el.isConnected && isVisible(el)) ? el : findRowByKey(key);
     if (!row) {
       // Already gone (for example deleted in another tab).
       return { alreadyGone: true };
@@ -630,9 +639,9 @@
     return { alreadyGone: false };
   }
 
-  async function runDeleteJob(keys, mode, sourceLabel) {
+  async function runDeleteJob(items, mode, sourceLabel) {
     const speed = SPEEDS[mode] || SPEEDS.balanced;
-    const total = keys.length;
+    const total = items.length;
 
     state.running = true;
     state.cancelRequested = false;
@@ -645,7 +654,7 @@
     let skipped = 0;
 
     for (let index = 0; index < total; index += 1) {
-      const key = keys[index];
+      const { key, el } = items[index];
       state.lastJob.current = index + 1;
 
       if (state.cancelRequested || !extensionAlive()) {
@@ -668,7 +677,7 @@
             setStatus(`Retrying ${index + 1}/${total} (attempt ${attempt + 1})...`, progress, true);
             await delay(speed.betweenDelay * (attempt + 1));
           }
-          await deleteOne(key, speed);
+          await deleteOne(key, speed, el);
           success = true;
           break;
         } catch (err) {
@@ -683,12 +692,13 @@
         break;
       }
 
-      const row = findRowByKey(key);
+      const row = el && el.isConnected ? el : (success ? null : findRowByKey(key));
       const box = row && row.querySelector(`.${CHECKBOX_CLASS}`);
 
       if (success) {
         deleted += 1;
-        state.failedKeys.delete(key);
+        const left = (state.failedKeys.get(key) || 0) - 1;
+        if (left > 0) state.failedKeys.set(key, left); else state.failedKeys.delete(key);
         if (row) {
           // Rarely Copilot keeps a stale copy of the row on screen; grey it out.
           row.classList.add(DELETED_CLASS);
@@ -698,7 +708,7 @@
         }
       } else {
         failed += 1;
-        state.failedKeys.add(key);
+        state.failedKeys.set(key, (state.failedKeys.get(key) || 0) + 1);
         if (row) {
           row.classList.add(FAILED_CLASS);
           if (box) {
@@ -742,8 +752,9 @@
       return { ok: false, message: "Wait for Load More to finish first.", stats: getStats() };
     }
 
-    const keys = [...new Set(rows.filter((row) => row && row.isConnected).map((row) => freshKey(row)))];
-    if (!keys.length) {
+    // One entry per ticked row. Chats with the same title are separate chats, so keep them all.
+    const items = [...new Set(rows.filter((row) => row && row.isConnected))].map((row) => ({ key: freshKey(row), el: row }));
+    if (!items.length) {
       const message = `No ${sourceLabel} chats found.`;
       setStatus(message, null, true);
       return { ok: true, message, stats: getStats() };
@@ -753,18 +764,22 @@
     if (Number.isFinite(request.reviewMin)) state.review.minDeleted = request.reviewMin;
 
     // Runs in the background so the side panel can show progress and stop it at any time.
-    runDeleteJob(keys, request.mode, sourceLabel).catch((err) => {
+    runDeleteJob(items, request.mode, sourceLabel).catch((err) => {
       console.error("[Copilot Delete Helper]", err);
       state.running = false;
       setStatus(`Stopped: ${err?.message || "unexpected error"}`, null, true);
       push("job-done", { message: "Stopped because of an unexpected error." });
     });
 
-    return { ok: true, started: true, message: `Deleting ${keys.length} ${sourceLabel} chat(s)...`, stats: getStats() };
+    return { ok: true, started: true, message: `Deleting ${items.length} ${sourceLabel} chat(s)...`, stats: getStats() };
   }
 
   function failedRows() {
-    return [...state.failedKeys].map((key) => findRowByKey(key)).filter(Boolean);
+    const rows = [];
+    state.failedKeys.forEach((count, key) => {
+      rows.push(...getChats().filter((el) => freshKey(el) === key).slice(0, count));
+    });
+    return rows;
   }
 
   // ---------------------------------------------------------------------------
@@ -836,6 +851,9 @@
         ? `Loaded ${added} more chat(s). ${after} chats loaded.`
         : `No more chats appeared. ${after} chats loaded.`;
       setStatus(message, 100, true);
+      // Clear the flags before building the reply, so the panel never sees a stale "loading".
+      state.loading = false;
+      state.cancelRequested = false;
       return { ok: true, message, stats: getStats() };
     } finally {
       state.loading = false;

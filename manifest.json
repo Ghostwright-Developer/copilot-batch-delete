@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Copilot Chat Batch Delete Helper",
   "version": "1.1.0",
-  "description": "Privacy-first batch cleanup for Microsoft Copilot chats using Copilot's own visible delete UI.",
+  "description": "Bulk delete Microsoft Copilot and Microsoft 365 Copilot chats in a few clicks. Free, private, no refresh needed.",
   "homepage_url": "https://copilot.ghostwrightweb.com",
   "minimum_chrome_version": "116",
   "permissions": [

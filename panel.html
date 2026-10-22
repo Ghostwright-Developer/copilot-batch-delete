@@ -9,9 +9,10 @@
   <body>
     <main class="app">
       <header class="hero">
-        <div>
-          <p class="eyebrow">Privacy-first</p>
+        <img class="logo" src="icons/icon48.png" alt="" width="36" height="36" />
+        <div class="titles">
           <h1>Copilot Delete Helper</h1>
+          <p class="tagline">Clean up your chats in a few clicks</p>
         </div>
         <span class="badge" id="connectionBadge">Connecting</span>
       </header>
@@ -32,84 +33,66 @@
         </div>
       </section>
 
-      <section class="panel stats-panel" aria-label="Current selection status">
-        <div class="stat">
-          <span class="stat-number" id="loadedCount">0</span>
-          <span class="stat-label">Loaded</span>
+      <section class="panel dash" aria-label="Current selection status" aria-live="polite">
+        <div class="stats">
+          <div class="stat"><span class="stat-number" id="loadedCount">0</span><span class="stat-label">Loaded</span></div>
+          <div class="stat"><span class="stat-number" id="selectedCount">0</span><span class="stat-label">Selected</span></div>
+          <div class="stat"><span class="stat-number" id="failedCount">0</span><span class="stat-label">Failed</span></div>
         </div>
-        <div class="stat">
-          <span class="stat-number" id="selectedCount">0</span>
-          <span class="stat-label">Selected</span>
-        </div>
-        <div class="stat">
-          <span class="stat-number" id="failedCount">0</span>
-          <span class="stat-label">Failed</span>
-        </div>
-      </section>
-
-      <section class="panel">
-        <div class="section-title">
-          <h2>1. Prepare</h2>
-          <p>Load more chats if you need them, then add checkboxes.</p>
-        </div>
-        <div class="button-grid two">
-          <button id="loadMore" class="secondary" data-needs="idle">Load More</button>
-          <button id="add" class="primary" data-needs="idle">Add Checkboxes</button>
-        </div>
-        <div class="button-grid two">
-          <button id="remove" class="ghost" data-needs="idle">Remove</button>
-          <button id="refresh" class="ghost" data-needs="connected">Refresh Count</button>
-        </div>
-      </section>
-
-      <section class="panel">
-        <div class="section-title">
-          <h2>2. Select</h2>
-          <p>Shift-click checkboxes to select a range.</p>
-        </div>
-        <div class="button-grid two">
-          <button id="selectAll" class="secondary" data-needs="idle">Select All Loaded</button>
-          <button id="deselectAll" class="ghost" data-needs="idle">Deselect All</button>
-        </div>
-      </section>
-
-      <section class="panel">
-        <div class="section-title row">
-          <div>
-            <h2>3. Delete</h2>
-            <p>Leave the Copilot tab alone while it runs.</p>
-          </div>
-          <label class="speed-wrap" for="speedMode">
-            <span>Mode</span>
-            <select id="speedMode" data-needs="idle">
-              <option value="balanced" selected>Balanced</option>
-              <option value="safe">Safe</option>
-              <option value="fast">Fast</option>
-            </select>
-          </label>
-        </div>
-
-        <button id="deleteSelected" class="danger" data-needs="idle">Delete Selected</button>
-
-        <div class="confirm" id="confirmBox" hidden>
-          <p id="confirmText">Delete 0 chats? This can't be undone.</p>
-          <div class="button-grid two">
-            <button id="confirmYes" class="danger">Delete</button>
-            <button id="confirmNo" class="ghost">Cancel</button>
-          </div>
-        </div>
-
-        <div class="button-grid two action-row">
-          <button id="retryFailed" class="secondary" data-needs="idle">Retry Failed</button>
-          <button id="cancelJob" class="ghost" data-needs="busy">Stop</button>
-        </div>
-      </section>
-
-      <section class="status-card" aria-live="polite">
-        <div class="progress-shell">
-          <div class="progress-bar" id="progressBar"></div>
-        </div>
+        <div class="progress-shell"><div class="progress-bar" id="progressBar"></div></div>
         <p id="status">Connecting to Copilot...</p>
+      </section>
+
+      <section class="panel flow">
+        <div class="step">
+          <div class="step-head"><span class="num">1</span><div><h2>Prepare</h2><p>Load older chats if you need them, then add checkboxes.</p></div></div>
+          <div class="button-grid two">
+            <button id="loadMore" class="secondary" data-needs="idle">Load more</button>
+            <button id="add" class="primary" data-needs="idle">Add checkboxes</button>
+          </div>
+          <div class="link-row">
+            <button id="remove" class="link" data-needs="idle">Remove checkboxes</button>
+            <button id="refresh" class="link" data-needs="connected">Refresh count</button>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-head"><span class="num">2</span><div><h2>Select</h2><p>Tick chats, or Shift-click to select a range.</p></div></div>
+          <div class="button-grid two">
+            <button id="selectAll" class="secondary" data-needs="idle">Select all loaded</button>
+            <button id="deselectAll" class="ghost" data-needs="idle">Deselect all</button>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-head">
+            <span class="num">3</span>
+            <div><h2>Delete</h2><p>Leave the Copilot tab alone while it runs.</p></div>
+            <label class="speed-wrap" for="speedMode">
+              <span>Speed</span>
+              <select id="speedMode" data-needs="idle">
+                <option value="balanced" selected>Balanced</option>
+                <option value="safe">Safe</option>
+                <option value="fast">Fast</option>
+              </select>
+            </label>
+          </div>
+
+          <button id="deleteSelected" class="danger" data-needs="idle">Delete selected</button>
+
+          <div class="confirm" id="confirmBox" hidden>
+            <p id="confirmText">Delete 0 chats? This can't be undone.</p>
+            <div class="button-grid two">
+              <button id="confirmYes" class="danger">Delete</button>
+              <button id="confirmNo" class="ghost">Cancel</button>
+            </div>
+          </div>
+
+          <div class="button-grid two action-row">
+            <button id="retryFailed" class="ghost" data-needs="idle">Retry failed</button>
+            <button id="cancelJob" class="ghost" data-needs="busy">Stop</button>
+          </div>
+        </div>
       </section>
 
       <section class="panel love" id="reviewCard">
