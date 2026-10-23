@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.1.0";
+  const VERSION = "1.2.0";
 
   // ---------------------------------------------------------------------------
   // Load guard
@@ -40,6 +40,17 @@
   ];
 
   const EXCLUDE_RE = /new chat|settings|upgrade|profile|account|sign in|sign out|copilot pro|apps|plugins|notebook|discover|recent activity|clear all/i;
+
+  // ---------------------------------------------------------------------------
+  // Which site are we on? Each site has its own small adapter further down;
+  // everything else (checkboxes, the delete loop, progress, Stop) is shared.
+  // ---------------------------------------------------------------------------
+  const HOST = location.hostname;
+  const SITE = /(^|\.)(chatgpt\.com|openai\.com)$/.test(HOST) ? "chatgpt"
+    : /(^|\.)claude\.ai$/.test(HOST) ? "claude"
+    : "copilot";
+  const SITE_LABEL = { copilot: "Copilot", chatgpt: "ChatGPT", claude: "Claude" }[SITE];
+  const MENU_BUTTON = 'button[aria-haspopup="menu"], [role="button"][aria-haspopup="menu"]';
 
   const SPEEDS = {
     fast: {
@@ -151,7 +162,73 @@
     return Boolean(interactive);
   }
 
+  function sortByTop(set) {
+    return [...set].sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top);
+  }
+
+  // Counts chat links inside an element, so a row can be told apart from a whole list.
+  function countLinks(el, test) {
+    let n = 0;
+    el.querySelectorAll("a[href]").forEach((a) => { if (test(a.getAttribute("href") || "")) n += 1; });
+    return n;
+  }
+
+  // Walks up from a chat link to the smallest block that holds only that chat and its menu button.
+  function rowAroundLink(link, test) {
+    let row = link;
+    let best = null;
+    for (let i = 0; i < 5 && row; i += 1) {
+      if (row.querySelector(MENU_BUTTON)) { best = row; break; }
+      const parent = row.parentElement;
+      if (!parent || parent === document.body || countLinks(parent, test) !== 1) break;
+      row = parent;
+    }
+    return best;
+  }
+
+  // ChatGPT: each chat is a row (role="group") in the sidebar with a link to /c/<id> and a "..." menu button.
+  const CHATGPT_LINK = (href) => /\/c\/[^/?#]+/.test(href);
+  function getChatGptChats() {
+    const rows = new Set();
+    document.querySelectorAll("a[href]").forEach((link) => {
+      if (!CHATGPT_LINK(link.getAttribute("href") || "") || isOurs(link)) return;
+      let row = link.closest('[role="group"]');
+      if (!row || !row.querySelector(MENU_BUTTON)) row = rowAroundLink(link, CHATGPT_LINK);
+      if (row && isVisible(row)) rows.add(row);
+    });
+    return sortByTop(rows);
+  }
+
+  // Claude: the Chats page (/recents) is a table with one row per chat; the sidebar lists
+  // recent chats as rows too. On the Chats page the table is the list, so use it alone
+  // (the sidebar shows the same chats and would count everything twice).
+  const CLAUDE_LINK = (href) => /^\/chat\/[^/?#]+/.test(href);
+  function getClaudeChats() {
+    const tableRows = new Set();
+    document.querySelectorAll("table a[href]").forEach((link) => {
+      if (!CLAUDE_LINK(link.getAttribute("href") || "") || isOurs(link)) return;
+      const tr = link.closest("tr");
+      if (tr && isVisible(tr) && tr.querySelector(MENU_BUTTON)) tableRows.add(tr);
+    });
+    if (tableRows.size) return sortByTop(tableRows);
+
+    const rows = new Set();
+    document.querySelectorAll("a[href]").forEach((link) => {
+      if (!CLAUDE_LINK(link.getAttribute("href") || "") || isOurs(link)) return;
+      let row = link.closest(".hit-row");
+      if (!row || !row.querySelector(MENU_BUTTON)) row = rowAroundLink(link, CLAUDE_LINK);
+      if (row && isVisible(row)) rows.add(row);
+    });
+    return sortByTop(rows);
+  }
+
   function getChats() {
+    if (SITE === "chatgpt") return getChatGptChats();
+    if (SITE === "claude") return getClaudeChats();
+    return getCopilotChats();
+  }
+
+  function getCopilotChats() {
     const found = new Set();
     for (const selector of CHAT_SELECTORS) {
       document.querySelectorAll(selector).forEach((el) => {
@@ -234,7 +311,7 @@
 
     const title = document.createElement("div");
     title.className = "cdh-status-title";
-    title.textContent = "Copilot Delete Helper";
+    title.textContent = "Clearcut Chats";
 
     const close = document.createElement("button");
     close.type = "button";
@@ -311,6 +388,8 @@
     return {
       connected: true,
       version: VERSION,
+      site: SITE,
+      siteLabel: SITE_LABEL,
       loaded: chats.length,
       checkboxes: boxes.length,
       boxesOn: state.boxesOn,
@@ -350,16 +429,17 @@
 
   function addBoxTo(chat) {
     markRow(chat);
+    const target = boxTarget(chat);
     const existing = chat.querySelector(`.${CHECKBOX_CLASS}`);
-    if (existing && existing.dataset.cdhOwner === OWNER) return false;
-    if (existing) existing.remove(); // left behind by an older copy of the extension
+    if (existing && existing.dataset.cdhOwner === OWNER && existing.parentElement === target) return false;
+    if (existing) existing.remove(); // left behind by an older copy, or in a cell that is not shown
 
     const box = document.createElement("input");
     box.type = "checkbox";
     box.className = CHECKBOX_CLASS;
     box.dataset.cdhOwner = OWNER;
-    box.title = "Select this Copilot chat";
-    box.setAttribute("aria-label", "Select Copilot chat for deletion");
+    box.title = `Select this ${SITE_LABEL} chat`;
+    box.setAttribute("aria-label", `Select ${SITE_LABEL} chat for deletion`);
 
     box.addEventListener("click", (event) => {
       event.stopPropagation();
@@ -386,10 +466,33 @@
 
     if (state.failedKeys.has(chatKey(chat))) chat.classList.add(FAILED_CLASS);
 
-    const first = chat.firstElementChild;
-    const insertionTarget = !first || first.matches("a[href]") ? chat : first;
-    insertionTarget.prepend(box);
+    target.prepend(box);
     return true;
+  }
+
+  // Where the checkbox goes inside a row. A table row puts it in its first column that has width
+  // (Claude's Chats page keeps its first column empty and zero-wide, which would hide the box).
+  function boxTarget(chat) {
+    if (chat.tagName === "TR") {
+      const cell = [...chat.children].find((td) => td.getBoundingClientRect().width > 0);
+      return cell || chat.firstElementChild || chat;
+    }
+    const first = chat.firstElementChild;
+    return !first || first.matches("a[href]") ? chat : first;
+  }
+
+  // Drops checkboxes from rows that are no longer part of the chat list, for example the sidebar
+  // rows that were ticked before Claude's Chats page opened and became the list.
+  function pruneStale(chats) {
+    const keep = new Set(chats);
+    document.querySelectorAll(`.${CHECKBOX_CLASS}`).forEach((box) => {
+      const row = rowOfBox(box);
+      if (row && !keep.has(row)) {
+        box.remove();
+        row.classList.remove(ROW_CLASS, FAILED_CLASS, DELETED_CLASS);
+        delete row.dataset.cdhChatRow;
+      }
+    });
   }
 
   function addCheckboxes(quiet = false) {
@@ -397,11 +500,15 @@
     startObserver();
     let added = 0;
     const chats = getChats();
+    pruneStale(chats);
     for (const chat of chats) {
       if (addBoxTo(chat)) added += 1;
     }
     if (!chats.length) {
-      const message = "No chats found on this page. Open the chat list in Copilot's sidebar and try again. If you can see chats and this keeps happening, email owen@ghostwrightweb.com.";
+      const where = SITE === "claude" ? "Open the Chats page or the sidebar's chat list"
+        : SITE === "chatgpt" ? "Open the sidebar's chat list"
+        : "Open the chat list in Copilot's sidebar";
+      const message = `No chats found on this page. ${where} and try again. If you can see chats and this keeps happening, email owen@ghostwrightweb.com.`;
       if (!quiet) setStatus(message, null, true);
       return { message, stats: getStats() };
     }
@@ -457,7 +564,9 @@
       timer = setTimeout(() => {
         if (!state.boxesOn || state.running) return;
         let added = 0;
-        getChats().forEach((chat) => { if (addBoxTo(chat)) added += 1; });
+        const chats = getChats();
+        pruneStale(chats);
+        chats.forEach((chat) => { if (addBoxTo(chat)) added += 1; });
         if (added) pushSoon("stats");
       }, 300);
     });
@@ -504,6 +613,13 @@
   async function getMenuButton(chat, speed) {
     hover(chat);
     await delay(speed.menuDelay);
+
+    // ChatGPT and Claude: the row's "..." button opens a menu. It can be hidden until the
+    // row is hovered, which a script click does not need, so no visibility check here.
+    if (SITE !== "copilot") {
+      const own = [...chat.querySelectorAll(MENU_BUTTON)].filter((btn) => !isOurs(btn) && !btn.classList.contains(CHECKBOX_CLASS));
+      if (own.length) return own[own.length - 1];
+    }
 
     const directSelectors = [
       'button[title*="Options" i]',
@@ -565,6 +681,10 @@
   }
 
   function getDeleteOption() {
+    if (SITE === "claude") {
+      const direct = document.querySelector('[data-testid="delete-chat-trigger"]');
+      if (direct && isVisible(direct)) return direct;
+    }
     const root = getOpenMenuRoot();
     const candidates = [...root.querySelectorAll('button, [role="menuitem"], [role="button"], div, span')]
       .filter(isVisible)
@@ -632,7 +752,7 @@
     const gone = await waitFor(() => countKey(key) < before, speed.verifyTimeout, 80);
     if (!gone) {
       pressEscape();
-      throw new Error(confirmBtn ? "Copilot still shows this chat after deleting." : "Copilot didn't show a delete confirmation.");
+      throw new Error(confirmBtn ? `${SITE_LABEL} still shows this chat after deleting.` : `${SITE_LABEL} didn't show a delete confirmation.`);
     }
 
     await delay(speed.settleDelay);
@@ -654,8 +774,14 @@
     let skipped = 0;
 
     for (let index = 0; index < total; index += 1) {
-      const { key, el } = items[index];
+      const { key, el, retry } = items[index];
       state.lastJob.current = index + 1;
+
+      // A chat being retried leaves the failed list while it is tried again; it goes back on if it fails again.
+      if (retry) {
+        const prev = state.failedKeys.get(key) || 0;
+        if (prev > 1) state.failedKeys.set(key, prev - 1); else state.failedKeys.delete(key);
+      }
 
       if (state.cancelRequested || !extensionAlive()) {
         skipped = total - index;
@@ -682,11 +808,12 @@
           break;
         } catch (err) {
           lastError = err;
-          console.warn("[Copilot Delete Helper] delete attempt failed:", err?.message || err);
+          console.warn("[Clearcut Chats] delete attempt failed:", err?.message || err);
         }
       }
 
       if (!success && state.cancelRequested && !lastError) {
+        if (retry) state.failedKeys.set(key, (state.failedKeys.get(key) || 0) + 1);
         skipped = total - index;
         state.lastJob.skipped = skipped;
         break;
@@ -697,8 +824,6 @@
 
       if (success) {
         deleted += 1;
-        const left = (state.failedKeys.get(key) || 0) - 1;
-        if (left > 0) state.failedKeys.set(key, left); else state.failedKeys.delete(key);
         if (row) {
           // Rarely Copilot keeps a stale copy of the row on screen; grey it out.
           row.classList.add(DELETED_CLASS);
@@ -753,7 +878,7 @@
     }
 
     // One entry per ticked row. Chats with the same title are separate chats, so keep them all.
-    const items = [...new Set(rows.filter((row) => row && row.isConnected))].map((row) => ({ key: freshKey(row), el: row }));
+    const items = [...new Set(rows.filter((row) => row && row.isConnected))].map((row) => ({ key: freshKey(row), el: row, retry: sourceLabel === "failed" }));
     if (!items.length) {
       const message = `No ${sourceLabel} chats found.`;
       setStatus(message, null, true);
@@ -765,7 +890,7 @@
 
     // Runs in the background so the side panel can show progress and stop it at any time.
     runDeleteJob(items, request.mode, sourceLabel).catch((err) => {
-      console.error("[Copilot Delete Helper]", err);
+      console.error("[Clearcut Chats]", err);
       state.running = false;
       setStatus(`Stopped: ${err?.message || "unexpected error"}`, null, true);
       push("job-done", { message: "Stopped because of an unexpected error." });
@@ -810,46 +935,85 @@
     state.cancelRequested = false;
     try {
       const before = getChats().length;
-      const target = findScrollContainers()[0] || document.scrollingElement || document.documentElement;
+      const started = Date.now();
+      const MAX_MS = 20 * 60 * 1000;                       // safety net only; Stop works at any time
+      // How long the list may sit still before we decide it is complete. Slow connections and
+      // very long histories (ChatGPT fetches older chats in batches) need real patience.
+      const patience = Math.max(8000, speed.loadDelay * 14);
+      const spinnerPatience = 45000;                       // keep waiting while the site shows a loading spinner
 
       let lastCount = before;
-      let stablePasses = 0;
-      const maxPasses = 40;
+      let idleMs = 0;
+      let spinnerMs = 0;
+      let pass = 0;
+      let endedBy = "end";
 
-      setStatus("Scrolling the chat list to load more chats...", 2, true);
+      const scrollers = () => {
+        const list = findScrollContainers().slice(0, 3);
+        return list.length ? list : [document.scrollingElement || document.documentElement];
+      };
+      const spinning = () => [...document.querySelectorAll('[role="progressbar"], [aria-busy="true"], .animate-spin')]
+        .some((el) => isVisible(el) && !isOurs(el));
+
+      setStatus("Scrolling the chat list to load more chats...", 5, true);
       push("loading");
 
-      for (let pass = 0; pass < maxPasses; pass += 1) {
-        if (state.cancelRequested) break;
+      while (true) {
+        if (state.cancelRequested) { endedBy = "stopped"; break; }
+        if (Date.now() - started > MAX_MS) { endedBy = "time"; break; }
+        pass += 1;
 
-        target.scrollTop = target.scrollHeight;
-        target.dispatchEvent(new Event("scroll", { bubbles: true }));
+        // Scroll every scrolling area that holds chats; a small step back first re-triggers lists
+        // that only load when the bottom comes into view again.
+        for (const target of scrollers()) {
+          target.scrollTop = Math.max(0, target.scrollHeight - target.clientHeight - 160);
+        }
+        await delay(60);
+        for (const target of scrollers()) {
+          target.scrollTop = target.scrollHeight;
+          target.dispatchEvent(new Event("scroll", { bubbles: true }));
+        }
         const last = getChats().pop();
         if (last) last.scrollIntoView({ block: "end" });
 
-        await delay(speed.loadDelay);
+        // Some lists end with a "Show more" style button instead of loading on scroll.
+        const moreBtn = [...document.querySelectorAll("button, a[role='button']")]
+          .filter(isVisible)
+          .filter((btn) => !isOurs(btn) && /^(show|load|view|see) (more|all|older)( chats)?$/i.test(getText(btn)))[0];
+        if (moreBtn) clickElement(moreBtn);
+
+        // Wait for the list to actually grow instead of for a fixed moment.
+        const waitStart = Date.now();
+        const waitMax = Math.max(1500, speed.loadDelay * 5);
+        while (Date.now() - waitStart < waitMax && !state.cancelRequested) {
+          await delay(100);
+          if (getChats().length > lastCount) break;
+        }
         if (state.boxesOn) getChats().forEach((chat) => addBoxTo(chat));
 
         const count = getChats().length;
         if (count > lastCount) {
           lastCount = count;
-          stablePasses = 0;
+          idleMs = 0;
+          spinnerMs = 0;
         } else {
-          stablePasses += 1;
+          const waited = Date.now() - waitStart;
+          if (spinning() && spinnerMs < spinnerPatience) spinnerMs += waited; else idleMs += waited;
         }
 
-        setStatus(`Loading... ${count} chats loaded.`, Math.min(95, Math.round(((pass + 1) / maxPasses) * 100)), true);
+        setStatus(`Loading... ${count} chats loaded. Press Stop in the panel to stop sooner.`, Math.min(95, 5 + pass), true);
         push("loading");
 
-        // Give slow connections a few extra tries before deciding the list is complete.
-        if (stablePasses >= 4) break;
+        if (idleMs >= patience) break;
       }
-
       const after = getChats().length;
       const added = Math.max(0, after - before);
+      const why = endedBy === "stopped" ? " Stopped."
+        : endedBy === "time" ? " Stopped after 20 minutes; run Load more again to continue."
+        : "";
       const message = added
-        ? `Loaded ${added} more chat(s). ${after} chats loaded.`
-        : `No more chats appeared. ${after} chats loaded.`;
+        ? `Loaded ${added} more chat(s). ${after} chats loaded.${why}`
+        : `No more chats appeared. ${after} chats loaded.${why}`;
       setStatus(message, 100, true);
       // Clear the flags before building the reply, so the panel never sees a stale "loading".
       state.loading = false;
@@ -899,7 +1063,7 @@
     routeMessage(request)
       .then(sendResponse)
       .catch((err) => {
-        console.error("[Copilot Delete Helper]", err);
+        console.error("[Clearcut Chats]", err);
         sendResponse({ ok: false, message: err?.message || "Unexpected error.", stats: getStats() });
       });
     return true;

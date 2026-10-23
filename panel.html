@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Copilot Delete Helper</title>
+    <title>Clearcut Chats</title>
     <link rel="stylesheet" href="panel.css" />
   </head>
   <body>
@@ -11,22 +11,32 @@
       <header class="hero">
         <img class="logo" src="icons/icon48.png" alt="" width="36" height="36" />
         <div class="titles">
-          <h1>Copilot Delete Helper</h1>
-          <p class="tagline">Clean up your chats in a few clicks</p>
+          <h1>Clearcut Chats</h1>
+          <p class="tagline">Copilot · ChatGPT · Claude</p>
         </div>
         <span class="badge" id="connectionBadge">Connecting</span>
       </header>
 
       <section class="panel notice" id="notCopilot" hidden>
-        <p><strong>Open Copilot to get started.</strong> This panel works on Microsoft Copilot and on the chat page of Microsoft 365 Copilot, and follows whichever tab you're on.</p>
+        <p><strong>Open a chat site to get started.</strong> This panel works on Microsoft Copilot, and on ChatGPT and Claude once you turn them on, and follows whichever tab you're on.</p>
         <div class="button-grid two">
-          <button id="openCopilot" class="primary">Open Copilot</button>
-          <button id="openM365" class="secondary">Open M365 Copilot</button>
+          <button id="openCopilot" class="primary">Copilot</button>
+          <button id="openM365" class="secondary">M365 Copilot</button>
+          <button id="openChatGPT" class="secondary">ChatGPT</button>
+          <button id="openClaude" class="secondary">Claude</button>
+        </div>
+      </section>
+
+      <section class="panel notice" id="accessCard" hidden>
+        <p><strong>Want it on ChatGPT or Claude?</strong> They're optional. Turn one on and your browser asks permission for just that site. Nothing is sent anywhere.</p>
+        <div class="button-grid two">
+          <button id="grantChatGPT" class="primary" hidden>Turn on ChatGPT</button>
+          <button id="grantClaude" class="primary" hidden>Turn on Claude</button>
         </div>
       </section>
 
       <section class="panel notice warn" id="reconnect" hidden>
-        <p id="reconnectText">Couldn't reach this Copilot tab.</p>
+        <p id="reconnectText">Couldn't reach this tab.</p>
         <div class="button-grid two">
           <button id="retryConnect" class="secondary">Try again</button>
           <button id="reloadTab" class="ghost">Reload tab</button>
@@ -40,7 +50,7 @@
           <div class="stat"><span class="stat-number" id="failedCount">0</span><span class="stat-label">Failed</span></div>
         </div>
         <div class="progress-shell"><div class="progress-bar" id="progressBar"></div></div>
-        <p id="status">Connecting to Copilot...</p>
+        <p id="status">Connecting...</p>
       </section>
 
       <section class="panel flow">
@@ -67,7 +77,7 @@
         <div class="step">
           <div class="step-head">
             <span class="num">3</span>
-            <div><h2>Delete</h2><p>Leave the Copilot tab alone while it runs.</p></div>
+            <div><h2>Delete</h2><p>Leave this tab alone while it runs.</p></div>
             <label class="speed-wrap" for="speedMode">
               <span>Speed</span>
               <select id="speedMode" data-needs="idle">
@@ -107,7 +117,7 @@
         </div>
 
         <div class="share" id="sharePanel" hidden>
-          <p class="share-lead" id="shareLead">Know someone with a pile of Copilot chats? Send them the link.</p>
+          <p class="share-lead" id="shareLead">Know someone with a pile of AI chats? Send them the link.</p>
           <div class="copy-row">
             <input id="shareLink" type="text" readonly aria-label="Share link" />
             <button id="copyLink" class="secondary small">Copy</button>
@@ -122,12 +132,17 @@
       </section>
 
       <footer>
-        <p>No telemetry. No servers. Uses Copilot's visible UI only.</p>
+        <p>No telemetry. No servers. Uses each site's visible UI only.</p>
+        <p class="fine">Independent tool. Not affiliated with or endorsed by Microsoft, OpenAI or Anthropic. Product names belong to their owners.</p>
+        <p class="support">
+          <button id="revokeChatGPT" class="link" hidden>Turn off ChatGPT</button>
+          <button id="revokeClaude" class="link" hidden>Turn off Claude</button>
+        </p>
         <p class="lifetime" id="lifetime" hidden></p>
         <p class="support">
           Help or ideas: <a id="supportLink" href="#">owen@ghostwrightweb.com</a>
         </p>
-        <p class="meta"><a id="websiteLink" target="_blank" rel="noopener noreferrer">Website</a> · <span id="versionText">v1.1.0</span></p>
+        <p class="meta"><a id="websiteLink" target="_blank" rel="noopener noreferrer">Website</a> · <span id="versionText">v1.2.0</span></p>
       </footer>
     </main>
 

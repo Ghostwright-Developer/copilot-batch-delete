@@ -9,6 +9,8 @@
   flex: 0 0 auto !important;
   accent-color: #7c5cff;
   vertical-align: middle !important;
+  position: relative !important;
+  z-index: 5 !important;
 }
 
 .cdh-row {

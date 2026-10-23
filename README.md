@@ -1,6 +1,6 @@
-# Copilot Chat Batch Delete Helper 1.1.0
+# Clearcut Chats 1.2.0
 
-Chrome / Edge extension for bulk deleting Microsoft Copilot chats. Privacy-first: no servers, no telemetry.
+Chrome / Edge extension for bulk deleting chats on Microsoft Copilot, ChatGPT and Claude. Privacy-first: no servers, no telemetry.
 
 ## Folder map
 - `Extension/` the runtime files. This is what gets zipped and submitted.

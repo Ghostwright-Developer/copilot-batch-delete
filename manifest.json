@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Copilot Chat Batch Delete Helper",
-  "version": "1.1.0",
-  "description": "Bulk delete Microsoft Copilot and Microsoft 365 Copilot chats in a few clicks. Free, private, no refresh needed.",
+  "name": "Clearcut Chats: Bulk Delete for AI Chats",
+  "version": "1.2.0",
+  "description": "Bulk delete chats in Microsoft Copilot, ChatGPT and Claude in a few clicks. Free, private, no refresh needed.",
   "homepage_url": "https://copilot.ghostwrightweb.com",
   "minimum_chrome_version": "116",
   "permissions": [
@@ -24,7 +24,7 @@
     "service_worker": "background.js"
   },
   "action": {
-    "default_title": "Open Copilot Delete Helper",
+    "default_title": "Open Clearcut Chats",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png",
@@ -61,5 +61,10 @@
     "32": "icons/icon32.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
-  }
+  },
+  "optional_host_permissions": [
+    "https://chatgpt.com/*",
+    "https://chat.openai.com/*",
+    "https://claude.ai/*"
+  ]
 }

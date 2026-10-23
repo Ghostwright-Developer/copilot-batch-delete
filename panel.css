@@ -176,3 +176,7 @@ footer a { color: var(--muted); }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
+
+.notice .fine { font-size: 12px; color: #9aa3b8; }
+footer .support .link { font-size: 12px; }
+footer .fine { font-size: 11px; line-height: 1.4; color: #8a93a8; margin: 6px 0; }

@@ -12,6 +12,7 @@ const els = {
   progress: $("progressBar"),
   speed: $("speedMode"),
   notCopilot: $("notCopilot"),
+  accessCard: $("accessCard"),
   reconnect: $("reconnect"),
   reconnectText: $("reconnectText"),
   confirmBox: $("confirmBox"),
@@ -28,6 +29,8 @@ const els = {
 
 const ui = {
   tabId: null,
+  site: null,             // the supported site on the active tab
+  siteLabel: "chat",
   connected: false,
   busy: false,            // a short command is waiting for its answer
   stats: {},
@@ -105,7 +108,7 @@ function updateStats(stats = {}) {
   if (stats.running) {
     const job = stats.job || {};
     setBadge("Deleting", "warn");
-    setStatus(`Deleting ${fmt(job.current)} of ${fmt(job.total)}. Deleted ${fmt(job.deleted)}, failed ${fmt(job.failed)}. Leave the Copilot tab alone until it finishes.`);
+    setStatus(`Deleting ${fmt(job.current)} of ${fmt(job.total)}. Deleted ${fmt(job.deleted)}, failed ${fmt(job.failed)}. Leave this tab alone until it finishes.`);
   } else if (stats.loading) {
     setBadge("Loading", "warn");
     setStatus(`Loading chats... ${fmt(stats.loaded)} loaded so far.`);
@@ -119,7 +122,7 @@ function renderLifetime() {
   const n = Number(ui.prefs.lifetimeDeleted || 0);
   if (n > 0) {
     els.lifetime.hidden = false;
-    els.lifetime.textContent = `You've cleared ${fmt(n)} Copilot chat${n === 1 ? "" : "s"} with Delete Helper.`;
+    els.lifetime.textContent = `You've cleared ${fmt(n)} chat${n === 1 ? "" : "s"} with Clearcut Chats.`;
   } else {
     els.lifetime.hidden = true;
   }
@@ -127,7 +130,7 @@ function renderLifetime() {
 
 function shareText() {
   const n = Number(ui.prefs.lifetimeDeleted || 0);
-  if (n >= 10) return `I just cleared ${fmt(n)} Copilot chats in a few clicks instead of deleting them one by one. Free extension:`;
+  if (n >= 10) return `I just cleared ${fmt(n)} AI chats in a few clicks instead of deleting them one by one. Free extension:`;
   return C.shareText;
 }
 
@@ -136,9 +139,9 @@ function renderShare() {
   const text = shareText();
   els.shareLink.value = url;
   $("shareX").href = `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
-  $("shareReddit").href = `https://www.reddit.com/submit?url=${encodeURIComponent(url)}&title=${encodeURIComponent("Free extension to bulk delete Microsoft Copilot chats")}`;
+  $("shareReddit").href = `https://www.reddit.com/submit?url=${encodeURIComponent(url)}&title=${encodeURIComponent("Free extension to bulk delete Copilot, ChatGPT and Claude chats")}`;
   $("shareLinkedIn").href = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`;
-  $("shareEmail").href = `mailto:?subject=${encodeURIComponent("Bulk delete your Copilot chats")}&body=${encodeURIComponent(`${text}\n\n${url}`)}`;
+  $("shareEmail").href = `mailto:?subject=${encodeURIComponent("Bulk delete your AI chats")}&body=${encodeURIComponent(`${text}\n\n${url}`)}`;
 }
 
 function nudgeAllowed() {
@@ -150,7 +153,7 @@ function nudgeAllowed() {
 function showNudge(deleted) {
   els.reviewCard.classList.add("nudge");
   els.reviewTitle.textContent = `Nice. ${fmt(deleted)} chats gone.`;
-  els.reviewText.textContent = `If Delete Helper saved you some clicks, a quick review on the ${STORE.store} helps other people find it.`;
+  els.reviewText.textContent = `If Clearcut Chats saved you some clicks, a quick review on the ${STORE.store} helps other people find it.`;
   els.dismissReview.hidden = false;
   $("toggleShare").hidden = true;
 }
@@ -164,7 +167,7 @@ function resetReviewCard() {
 }
 
 // ---------------------------------------------------------------------------
-// Connecting to the Copilot tab
+// Connecting to the active tab
 // ---------------------------------------------------------------------------
 async function getActiveTab() {
   try {
@@ -173,6 +176,59 @@ async function getActiveTab() {
   } catch (_) {
     return null;
   }
+}
+
+async function hasAccess(site) {
+  try {
+    return await chrome.permissions.contains({ origins: window.CDH_matchesFor(site) });
+  } catch (_) {
+    return false;
+  }
+}
+
+const optionalSites = () => window.CDH_CONFIG.sites.filter((site) => !site.required);
+const siteById = (id) => window.CDH_CONFIG.sites.find((site) => site.id === id);
+const ACCESS_BUTTONS = { chatgpt: ["grantChatGPT", "revokeChatGPT"], claude: ["grantClaude", "revokeClaude"] };
+
+// Shows "Turn on" for sites not allowed yet and "Turn off" for sites that are.
+async function refreshAccess(onSupportedSite) {
+  let anyOff = false;
+  for (const site of optionalSites()) {
+    const [grantId, revokeId] = ACCESS_BUTTONS[site.id];
+    const granted = await hasAccess(site);
+    $(grantId).hidden = granted;
+    $(revokeId).hidden = !granted;
+    if (!granted) anyOff = true;
+  }
+  els.accessCard.hidden = onSupportedSite || !anyOff;
+}
+
+// Must run straight from a click so the browser will show its permission prompt.
+async function requestAccess(siteId) {
+  const site = siteById(siteId);
+  if (!site || site.required) return;
+  let granted = false;
+  try {
+    granted = await chrome.permissions.request({ origins: window.CDH_matchesFor(site) });
+  } catch (err) {
+    console.warn("[Clearcut Chats] permission request failed", err?.message);
+  }
+  if (granted) {
+    setStatus(`${site.label} is on. Open ${site.label} and this panel will connect.`);
+    await connect();
+    setStatus(`${site.label} is on. Open ${site.label} and this panel will connect.`);
+  } else {
+    setStatus(`Access to ${site.label} wasn't allowed, so nothing runs there. You can try again any time.`);
+  }
+}
+
+async function revokeAccess(siteId) {
+  const site = siteById(siteId);
+  if (!site || site.required) return;
+  try {
+    await chrome.permissions.remove({ origins: window.CDH_matchesFor(site) });
+  } catch (_) { /* nothing to remove */ }
+  await connect();
 }
 
 function withTimeout(promise, ms) {
@@ -198,7 +254,7 @@ async function inject(tabId) {
     await chrome.scripting.executeScript({ target: { tabId }, files: ["content.js"] });
     return true;
   } catch (err) {
-    console.warn("[Copilot Delete Helper] inject failed", err?.message);
+    console.warn("[Clearcut Chats] inject failed", err?.message);
     return false;
   }
 }
@@ -214,11 +270,19 @@ async function connect() {
   ui.tabId = tab?.id ?? null;
   els.reconnect.hidden = true;
 
-  if (!tab || !window.CDH_isCopilotUrl(tab.url)) {
+  // Without access to a site the browser hides that tab's address, so a tab we can read is a supported one
+  // (or an ordinary site we can't use). Either way the access card below lets the user turn on ChatGPT or Claude.
+  const site = tab && tab.url ? window.CDH_siteForUrl(tab.url) : null;
+  ui.site = site;
+  ui.siteLabel = site ? site.label : "chat";
+  await refreshAccess(Boolean(site));
+  if (seq !== ui.connectSeq) return false;
+
+  if (!site) {
     ui.connected = false;
     els.notCopilot.hidden = false;
-    setBadge("Open Copilot", "error");
-    setStatus("Switch to a Copilot tab, or open one with the button above.");
+    setBadge("Open a chat site", "error");
+    setStatus("Switch to a Copilot, ChatGPT or Claude tab, or open one with the buttons above.");
     updateStats({});
     return false;
   }
@@ -237,7 +301,7 @@ async function connect() {
     // Copilot is still loading. The page will announce itself when it is ready.
     if (seq !== ui.connectSeq) return false;
     setBadge("Waiting", "warn");
-    setStatus("Waiting for Copilot to finish loading...");
+    setStatus("Waiting for the page to finish loading...");
     setTimeout(() => { if (!ui.connected && seq === ui.connectSeq) connect(); }, 2500);
     return false;
   }
@@ -247,7 +311,7 @@ async function connect() {
   if (!reply?.ok) {
     ui.connected = false;
     els.reconnect.hidden = false;
-    els.reconnectText.textContent = "Couldn't reach this Copilot tab. Try again, or reload the tab if Copilot itself looks stuck.";
+    els.reconnectText.textContent = `Couldn't reach this ${ui.siteLabel} tab. Try again, or reload the tab if ${ui.siteLabel} itself looks stuck.`;
     setBadge("Not connected", "error");
     setStatus("The helper couldn't start in this tab.");
     updateStats({});
@@ -325,7 +389,7 @@ async function askToDelete(action) {
   }
   ui.pendingAction = action;
   const what = action === "retryFailed" ? "failed chat" : "chat";
-  els.confirmText.textContent = `Delete ${fmt(count)} ${what}${count === 1 ? "" : "s"}? This can't be undone. Leave the Copilot tab alone while it runs.`;
+  els.confirmText.textContent = `Delete ${fmt(count)} ${what}${count === 1 ? "" : "s"}? This can't be undone. Leave this tab alone while it runs.`;
   els.confirmBox.hidden = false;
   $("confirmYes").focus();
 }
@@ -369,7 +433,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("versionText").textContent = `v${chrome.runtime.getManifest().version}`;
   $("websiteLink").href = C.websiteUrl;
   $("supportLink").textContent = C.supportEmail;
-  $("supportLink").href = `mailto:${C.supportEmail}?subject=${encodeURIComponent("Copilot Delete Helper")}`;
+  $("supportLink").href = `mailto:${C.supportEmail}?subject=${encodeURIComponent("Clearcut Chats")}`;
 
   wire("add", () => run("add"));
   wire("remove", () => run("remove"));
@@ -388,6 +452,12 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   wire("openCopilot", () => openTab(C.copilotUrl));
   wire("openM365", () => openTab(C.m365CopilotUrl));
+  wire("openChatGPT", () => openTab(C.chatgptUrl));
+  wire("openClaude", () => openTab(C.claudeUrl));
+  wire("grantChatGPT", () => requestAccess("chatgpt"));
+  wire("grantClaude", () => requestAccess("claude"));
+  wire("revokeChatGPT", () => revokeAccess("chatgpt"));
+  wire("revokeClaude", () => revokeAccess("claude"));
   wire("retryConnect", () => connect());
   wire("reloadTab", () => { if (ui.tabId != null) chrome.tabs.reload(ui.tabId); });
 
