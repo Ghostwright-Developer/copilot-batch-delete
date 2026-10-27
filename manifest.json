@@ -3,7 +3,7 @@
   "name": "Clearcut Chats: Bulk Delete for AI Chats",
   "version": "1.2.0",
   "description": "Bulk delete chats in Microsoft Copilot, ChatGPT and Claude in a few clicks. Free, private, no refresh needed.",
-  "homepage_url": "https://copilot.ghostwrightweb.com",
+  "homepage_url": "https://clearcutchats.ghostwrightweb.com",
   "minimum_chrome_version": "116",
   "permissions": [
     "scripting",

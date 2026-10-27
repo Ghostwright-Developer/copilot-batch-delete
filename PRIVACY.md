@@ -11,7 +11,7 @@ Clearcut Chats does not collect, store, sell, transmit, or share your personal d
 - Your speed mode, how many chats you have cleared (a counter), and whether you've dismissed the review reminder. This uses the browser's local extension storage and never leaves your device. Removing the extension deletes it.
 
 **What it opens**
-- On first install, and after updates that add features, it opens a page on ghostwrightweb.com. The address includes only the extension version (for example `?v=1.2.0&src=install`). No identifier is sent.
+- On first install, and after updates that add features, it opens a page on clearcutchats.ghostwrightweb.com. The address includes only the extension version (for example `?v=1.2.0&src=install`). No identifier is sent.
 - Review, share and support links open only when you click them.
 
 **What it does not use**

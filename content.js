@@ -80,6 +80,7 @@
     boxesOn: false,
     lastBox: null,
     failedKeys: new Map(), // chat key -> how many chats with that title failed
+    selected: new Set(), // stable keys (links/ids) of ticked chats, so a tick survives Copilot re-drawing the row
     lastJob: { total: 0, deleted: 0, failed: 0, skipped: 0, current: 0, finished: false },
     review: { url: "", minDeleted: 5, show: false }
   };
@@ -228,11 +229,19 @@
     return getCopilotChats();
   }
 
+  // The loose matches above also catch things like the suggestion buttons under the message box.
+  // Real chats live in the left-hand list, so ignore anything in the message form or out in the page.
+  function inChatListZone(el) {
+    if (el.closest("form, [role='form'], [contenteditable='true']")) return false;
+    if (el.closest("nav, aside, [role='navigation']")) return true;
+    return el.getBoundingClientRect().right <= 420;
+  }
+
   function getCopilotChats() {
     const found = new Set();
     for (const selector of CHAT_SELECTORS) {
       document.querySelectorAll(selector).forEach((el) => {
-        if (looksLikeChat(el)) found.add(el);
+        if (looksLikeChat(el) && inChatListZone(el)) found.add(el);
       });
     }
     // Microsoft 365 Copilot: each chat is a link to /chat/conversation/<id> inside a row that also
@@ -427,6 +436,21 @@
     chatKey(row);
   }
 
+  // Only links and ids identify one chat for sure. Titles can repeat, so they are never remembered.
+  function stableKey(chat) {
+    const k = chatKey(chat);
+    return /^(href|id):/.test(k) ? k : null;
+  }
+
+  function syncSelected() {
+    getBoxes().forEach((b) => {
+      const row = rowOfBox(b);
+      const k = row && stableKey(row);
+      if (!k) return;
+      if (b.checked && !b.disabled) state.selected.add(k); else state.selected.delete(k);
+    });
+  }
+
   function addBoxTo(chat) {
     markRow(chat);
     const target = boxTarget(chat);
@@ -457,6 +481,7 @@
       }
 
       state.lastBox = box;
+      syncSelected();
       pushSoon("selection");
     });
 
@@ -466,6 +491,8 @@
 
     if (state.failedKeys.has(chatKey(chat))) chat.classList.add(FAILED_CLASS);
 
+    const remembered = stableKey(chat);
+    if (remembered && state.selected.has(remembered)) box.checked = true;
     target.prepend(box);
     return true;
   }
@@ -477,7 +504,9 @@
       const cell = [...chat.children].find((td) => td.getBoundingClientRect().width > 0);
       return cell || chat.firstElementChild || chat;
     }
-    const first = chat.firstElementChild;
+    // Skip our own checkbox: once it is in the row it would otherwise be mistaken for the row's content,
+    // and every later pass would move the box onto itself, where it cannot be seen.
+    const first = [...chat.children].find((c) => !c.classList.contains(CHECKBOX_CLASS));
     return !first || first.matches("a[href]") ? chat : first;
   }
 
@@ -507,7 +536,7 @@
     if (!chats.length) {
       const where = SITE === "claude" ? "Open the Chats page or the sidebar's chat list"
         : SITE === "chatgpt" ? "Open the sidebar's chat list"
-        : "Open the chat list in Copilot's sidebar";
+        : "Open Copilot's sidebar and expand the Chats section";
       const message = `No chats found on this page. ${where} and try again. If you can see chats and this keeps happening, email owen@ghostwrightweb.com.`;
       if (!quiet) setStatus(message, null, true);
       return { message, stats: getStats() };
@@ -534,6 +563,7 @@
     clearMarks();
     state.lastBox = null;
     state.failedKeys.clear();
+    state.selected.clear();
     setStatus("Checkboxes removed.", 0, false);
     return { message: `Removed ${count} checkbox(es).`, stats: getStats() };
   }
@@ -542,12 +572,14 @@
     addCheckboxes(true);
     const boxes = getBoxes().filter((box) => !box.disabled);
     boxes.forEach((box) => { box.checked = true; });
+    syncSelected();
     setStatus(`Selected ${boxes.length} visible chat(s).`, null, true);
     return { message: `Selected ${boxes.length} loaded chat(s).`, stats: getStats() };
   }
 
   function deselectAll() {
     getBoxes().forEach((box) => { box.checked = false; });
+    state.selected.clear();
     setStatus("Deselected all chats.", null, true);
     return { message: "Deselected all chats.", stats: getStats() };
   }
@@ -568,7 +600,7 @@
         pruneStale(chats);
         chats.forEach((chat) => { if (addBoxTo(chat)) added += 1; });
         if (added) pushSoon("stats");
-      }, 300);
+      }, 120);
     });
     observer.observe(document.body || document.documentElement, { childList: true, subtree: true });
   }
@@ -638,15 +670,27 @@
       if (direct && isVisible(direct)) return direct;
     }
 
+    // The row's own "..." button is often hidden until hover (opacity 0), so it fails isVisible.
+    // A script click does not need it visible, and it must win over any lookalike elsewhere on
+    // the page (such as the "+" button by the message box, which also has a "menu" label).
+    const rowButtons = [...chat.querySelectorAll('button, [role="button"]')]
+      .filter((btn) => !isOurs(btn) && !btn.classList.contains(CHECKBOX_CLASS) && !btn.closest("a[href]"));
+    const rowMenu = rowButtons.filter((btn) =>
+      btn.matches(MENU_BUTTON) ||
+      /more|menu|options|ellipsis|⋯|…/i.test(`${btn.title || ""} ${btn.getAttribute("aria-label") || ""} ${btn.getAttribute("data-testid") || ""} ${getText(btn)}`));
+    if (rowMenu.length) return rowMenu[rowMenu.length - 1];
+
     const chatCenter = elementCenter(chat);
+    const rowRect = chat.getBoundingClientRect();
     const candidates = [...document.querySelectorAll('button, [role="button"]')]
       .filter(isVisible)
       .filter((btn) => !isOurs(btn))
       .filter((btn) => {
         const text = `${btn.title || ""} ${btn.getAttribute("aria-label") || ""} ${btn.getAttribute("data-testid") || ""} ${getText(btn)}`;
         if (!/view options|more|menu|options|ellipsis|⋯|…/i.test(text)) return false;
-        const btnCenter = elementCenter(btn);
-        return Math.abs(btnCenter.y - chatCenter.y) < 48 && Math.abs(btnCenter.x - chatCenter.x) < Math.max(360, chat.getBoundingClientRect().width + 80);
+        // Only a button that sits on this row counts, never one elsewhere (composer, header, sidebar "More").
+        const b = elementCenter(btn);
+        return b.x >= rowRect.left - 12 && b.x <= rowRect.right + 12 && b.y >= rowRect.top - 12 && b.y <= rowRect.bottom + 12;
       })
       .sort((a, b) => Math.abs(elementCenter(a).y - chatCenter.y) - Math.abs(elementCenter(b).y - chatCenter.y));
 
@@ -822,6 +866,7 @@
       const row = el && el.isConnected ? el : (success ? null : findRowByKey(key));
       const box = row && row.querySelector(`.${CHECKBOX_CLASS}`);
 
+      state.selected.delete(key);
       if (success) {
         deleted += 1;
         if (row) {

@@ -14,6 +14,10 @@
 **Fixes**
 - Retry Failed no longer counts the same stubborn chat twice in the Failed total.
 - The checkboxes sit above sites that make the whole chat row clickable.
+- Deleting works on Microsoft 365 Copilot layouts where a chat's menu button only appears when you hover it (before, the wrong button could be clicked and every delete failed).
+- Checkboxes and ticks no longer flicker or disappear when Copilot redraws the chat list while you scroll.
+- If no chats are found, the message now reminds you to expand the Chats section in the sidebar.
+- The suggestion buttons under the message box (such as Draft Content) can no longer be mistaken for chats and given checkboxes.
 
 ## 1.1.0 (2026-10-21)
 

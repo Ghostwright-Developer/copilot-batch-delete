@@ -3,7 +3,7 @@
 (function (root) {
   const CHROME_ID = "ndhlafbieanmkgipgihhpgoelgnhmide";
   const EDGE_ID = "kjkcbijhicofiliemdhioojahfmdhnhk";
-  const SITE = "https://copilot.ghostwrightweb.com";
+  const SITE = "https://clearcutchats.ghostwrightweb.com";
 
   root.CDH_CONFIG = {
     supportEmail: "owen@ghostwrightweb.com",
